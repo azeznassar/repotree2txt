@@ -6,7 +6,6 @@
 
 ![repotree2txt preview](preview.png)
 
----
 
 ## What it does
 
@@ -26,7 +25,7 @@ owner/repo
 owner/repo@branch
 ```
 
-**ZIP file** — drag and drop, or click to browse. Works with GitHub's built-in "Download ZIP" export.
+**ZIP file** — drag and drop or click to browse. Works with GitHub's built-in "Download ZIP" export.
 
 **Local folder** — click "Choose Folder" and pick any directory on your machine. All subdirectories are included automatically.
 
