@@ -1,6 +1,8 @@
 # repotree2txt
 
-> Turns a GitHub repo, .zip, or local folder into a single `.txt` file with a visual file tree — ready to paste into any LLM.
+> Turns a GitHub repo, .zip, or local folder into a single `.txt` file with a visual file tree, ready to paste into any LLM.
+
+**[→ azeznassar.github.io/repotree2txt](https://azeznassar.github.io/repotree2txt)**
 
 ![repotree2txt preview](preview.png)
 
@@ -8,7 +10,7 @@
 
 ## What it does
 
-You've got a codebase. You want to ask Claude, GPT-4, or Gemini something about it. But copy-pasting 40 files one by one is painful. **repotree2txt** solves that.
+You've got a codebase. You want to ask Claude, ChatGPT or Gemini something about it. But copy-pasting the files one by one is painful. **repotree2txt** solves that.
 
 Drop in a repo (three ways), and it spits out one clean text file: an ASCII directory tree at the top, then every text file concatenated in order with clear headers. Copy it, paste it into your LLM of choice, and start asking questions about the whole codebase at once.
 
@@ -92,18 +94,6 @@ After processing, the app shows:
 | Total Size | Size of the final output in bytes/KB/MB |
 
 A warning appears if the output exceeds 10 MB, though processing still completes.
-
----
-
-## Usage
-
-It's a single HTML file — no install, no backend, no dependencies to manage.
-
-1. Download `index.html`
-2. Open it in any modern browser
-3. Load a repo, copy the output, paste into your LLM
-
-Everything runs locally in your browser. GitHub fetches go directly to the GitHub API and `raw.githubusercontent.com` — no data passes through any server.
 
 ---
 
