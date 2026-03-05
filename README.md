@@ -1,6 +1,6 @@
 # repotree2txt
 
-> Turns a GitHub repo, .zip, or local folder into a single `.txt` file with a visual file tree, ready to paste into any LLM.
+> Turns a GitHub repo, .zip or local folder into a single `.txt` file with a visual file tree, ready to paste into any LLM.
 
 **[→ azeznassar.github.io/repotree2txt](https://azeznassar.github.io/repotree2txt)**
 
