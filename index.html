@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>repotree2txt — Repository to LLM Context</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --amber: #f59e0b;
+      --amber-dim: #b45309;
+      --amber-glow: rgba(245,158,11,0.12);
+      --amber-glow2: rgba(245,158,11,0.06);
+      --zinc-900: #18181b;
+      --zinc-950: #09090b;
+      --zinc-800: #27272a;
+      --zinc-700: #3f3f46;
+      --zinc-600: #52525b;
+      --zinc-500: #71717a;
+      --zinc-400: #a1a1aa;
+      --zinc-300: #d4d4d8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #3b82f6;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--zinc-950);
+      color: var(--zinc-300);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      overflow: hidden;
+    }
+    h1, .syne { font-family: 'Syne', sans-serif; }
+
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 9999; opacity: 0.35;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--zinc-950); }
+    ::-webkit-scrollbar-thumb { background: var(--zinc-700); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--amber-dim); }
+
+    .input-tab {
+      font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 7px 15px; border-radius: 5px 5px 0 0;
+      border: 1px solid transparent; border-bottom: none;
+      cursor: pointer; color: var(--zinc-500); background: transparent;
+      transition: background 0.15s, color 0.15s;
+    }
+    .input-tab:hover { color: var(--zinc-300); background: var(--zinc-800); }
+    .input-tab.active {
+      color: var(--amber); background: var(--zinc-900);
+      border-color: var(--zinc-700); border-bottom-color: var(--zinc-900);
+      position: relative; z-index: 1;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: flex; }
+
+    #drop-zone {
+      border: 1.5px dashed var(--zinc-700); border-radius: 7px;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+    #drop-zone.drag-over {
+      border-color: var(--amber); background: var(--amber-glow);
+      box-shadow: 0 0 30px var(--amber-glow), inset 0 0 30px var(--amber-glow);
+    }
+    #drop-zone:hover { border-color: var(--zinc-600); }
+
+    .gh-input {
+      background: var(--zinc-950); border: 1px solid var(--zinc-700);
+      border-radius: 6px; color: var(--zinc-300);
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      padding: 9px 12px; width: 100%; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .gh-input:focus { border-color: var(--amber-dim); box-shadow: 0 0 0 2px var(--amber-glow); }
+    .gh-input::placeholder { color: var(--zinc-600); }
+
+    #rate-badge {
+      font-size: 10px; font-family: 'Syne', sans-serif; font-weight: 700;
+      padding: 3px 8px; border-radius: 4px;
+      background: var(--zinc-800); color: var(--zinc-500);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    #rate-badge.ok  { color: var(--green); background: rgba(34,197,94,0.1); }
+    #rate-badge.warn{ color: var(--amber); background: var(--amber-glow); }
+    #rate-badge.low { color: var(--red);   background: rgba(239,68,68,0.1); }
+
+    .btn-amber {
+      background: var(--amber); color: #000;
+      font-family: 'Syne', sans-serif; font-weight: 700; letter-spacing: 0.02em;
+      border: none; cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .btn-amber:hover { background: #fbbf24; box-shadow: 0 0 20px rgba(245,158,11,0.4); }
+    .btn-amber:active { transform: scale(0.97); }
+    .btn-amber:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+    .btn-ghost {
+      background: var(--zinc-800); color: var(--zinc-300);
+      border: 1px solid var(--zinc-700);
+      font-family: 'Syne', sans-serif; font-weight: 600;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-ghost:hover { background: var(--zinc-700); border-color: var(--zinc-600); }
+    .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-blue {
+      background: var(--blue); color: #fff;
+      font-family: 'Syne', sans-serif; font-weight: 700;
+      border: none; cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .btn-blue:hover { background: #60a5fa; box-shadow: 0 0 16px rgba(59,130,246,0.35); }
+    .btn-blue:active { transform: scale(0.97); }
+    .btn-blue:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #progress-bar-inner {
+      background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+      transition: width 0.15s ease;
+      box-shadow: 0 0 8px var(--amber-glow);
+    }
+
+    #output {
+      background: var(--zinc-950); color: #86efac;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.65;
+      resize: none; border: none; outline: none; caret-color: var(--amber);
+    }
+
+    .stat-card {
+      background: var(--zinc-900); border: 1px solid var(--zinc-800);
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+    }
+
+    .ignore-tag {
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      color: var(--zinc-400); font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      transition: border-color 0.15s, color 0.15s; cursor: default;
+    }
+    .ignore-tag:hover { border-color: var(--red); color: var(--red); }
+
+    #copy-btn.copied { background: var(--green); box-shadow: 0 0 20px rgba(34,197,94,0.35); }
+
+    #size-warning { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+    #gh-error     { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+    #gh-info      { background: var(--amber-glow2);  border: 1px solid rgba(245,158,11,0.2); color: #fde68a; }
+
+    .cursor-blink {
+      display: inline-block; width: 2px; height: 0.85em;
+      background: var(--amber); vertical-align: middle; margin-left: 2px;
+      animation: blink 1.1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .fade-in { animation: fadeUp 0.45s ease forwards; opacity: 0; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .d1{animation-delay:.04s} .d2{animation-delay:.08s}
+    .d3{animation-delay:.12s} .d4{animation-delay:.16s} .d5{animation-delay:.22s}
+
+    .output-wrap { position: relative; }
+    .output-wrap::after {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px);
+      pointer-events: none;
+    }
+
+    .section-label {
+      font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.15em; text-transform: uppercase; color: var(--zinc-600);
+    }
+
+    input[type="text"], input[type="password"] {
+      background: var(--zinc-900); border: 1px solid var(--zinc-700);
+      color: var(--zinc-300); font-family: 'JetBrains Mono', monospace;
+      outline: none; transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, input[type="password"]:focus { border-color: var(--amber-dim); }
+
+    #app { display: flex; flex-direction: column; height: 100vh; }
+    #top-panel { flex-shrink: 0; overflow-y: auto; max-height: 60vh; }
+    #bottom-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #output { flex: 1; min-height: 0; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin 0.7s linear infinite; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header class="fade-in" style="background:var(--zinc-950);border-bottom:1px solid var(--zinc-800);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:30px;height:30px;background:var(--amber);display:flex;align-items:center;justify-content:center;border-radius:5px;flex-shrink:0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+      </div>
+      <h1 style="font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#fff;margin:0;">
+        repotree2txt<span class="cursor-blink"></span>
+      </h1>
+      <span style="background:var(--zinc-800);color:var(--zinc-500);font-size:10px;padding:2px 8px;border-radius:3px;letter-spacing:0.06em;font-family:'Syne',sans-serif;font-weight:700;">v2.0</span>
+    </div>
+    <div style="color:var(--zinc-600);font-size:11px;font-family:'Syne',sans-serif;letter-spacing:0.04em;">Repository → LLM Context Converter</div>
+  </header>
+
+  <!-- TOP PANEL -->
+  <div id="top-panel" style="background:var(--zinc-950);border-bottom:1px solid var(--zinc-800);padding:14px 20px 12px;">
+
+    <!-- Tabs -->
+    <div class="fade-in d1" style="display:flex;gap:0;margin-bottom:-1px;position:relative;z-index:2;">
+      <button class="input-tab active" id="tab-zip" onclick="switchTab('zip')" aria-label="ZIP file input">
+        <i data-lucide="archive" style="width:11px;height:11px;display:inline;vertical-align:middle;margin-right:5px;"></i>ZIP File
+      </button>
+      <button class="input-tab" id="tab-folder" onclick="switchTab('folder')" aria-label="Local folder input">
+        <i data-lucide="folder-open" style="width:11px;height:11px;display:inline;vertical-align:middle;margin-right:5px;"></i>Local Folder
+      </button>
+      <button class="input-tab" id="tab-github" onclick="switchTab('github')" aria-label="GitHub URL input">
+        <i data-lucide="github" style="width:11px;height:11px;display:inline;vertical-align:middle;margin-right:5px;"></i>GitHub URL
+      </button>
+    </div>
+
+    <!-- Tab panels container -->
+    <div class="fade-in d2" style="background:var(--zinc-900);border:1px solid var(--zinc-700);border-radius:0 7px 7px 7px;padding:14px;margin-bottom:12px;">
+
+      <!-- ZIP -->
+      <div id="panel-zip" class="tab-panel active" style="gap:10px;align-items:stretch;">
+        <div id="drop-zone" style="flex:1;padding:18px 22px;cursor:pointer;display:flex;align-items:center;gap:14px;" onclick="document.getElementById('zip-input').click()" role="button" aria-label="Click or drop ZIP file here">
+          <input type="file" id="zip-input" accept=".zip" style="display:none;" aria-label="ZIP file input" />
+          <div style="width:34px;height:34px;background:var(--zinc-800);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i data-lucide="archive" style="width:17px;height:17px;color:var(--amber);"></i>
+          </div>
+          <div>
+            <div style="color:#fff;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;margin-bottom:2px;">Drop a .zip file here or click to browse</div>
+            <div style="color:var(--zinc-500);font-size:11px;">GitHub repo exports, any ZIP archive of a codebase</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOLDER -->
+      <div id="panel-folder" class="tab-panel" style="gap:12px;align-items:center;">
+        <label class="btn-ghost" style="padding:11px 18px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:9px;font-size:13px;">
+          <i data-lucide="folder-open" style="width:15px;height:15px;"></i>
+          Choose Folder&hellip;
+          <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none;" aria-label="Select local folder" />
+        </label>
+        <span style="color:var(--zinc-600);font-size:11px;">All files and subdirectories are recursively included.</span>
+      </div>
+
+      <!-- GITHUB -->
+      <div id="panel-github" class="tab-panel" style="flex-direction:column;gap:10px;">
+
+        <!-- URL row -->
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="position:relative;flex:1;">
+            <div style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
+              <i data-lucide="github" style="width:14px;height:14px;color:var(--zinc-500);"></i>
+            </div>
+            <input type="text" id="gh-url-input" class="gh-input"
+              style="padding-left:32px;"
+              placeholder="https://github.com/owner/repo  ·  owner/repo  ·  owner/repo@branch"
+              aria-label="GitHub repository URL" />
+          </div>
+          <button id="gh-fetch-btn" class="btn-blue" style="padding:9px 18px;border-radius:6px;font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:7px;" aria-label="Fetch GitHub repository">
+            <span id="gh-btn-icon"><i data-lucide="download-cloud" style="width:14px;height:14px;"></i></span>
+            <span id="gh-btn-label">Fetch Repo</span>
+          </button>
+        </div>
+
+        <!-- Token + rate limit row -->
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="position:relative;flex:1;">
+            <div style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
+              <i data-lucide="key" style="width:12px;height:12px;color:var(--zinc-600);"></i>
+            </div>
+            <input type="password" id="gh-token-input"
+              style="padding:7px 12px 7px 30px;border-radius:6px;font-size:11px;border:1px solid var(--zinc-800);background:var(--zinc-950);color:var(--zinc-400);width:100%;outline:none;"
+              placeholder="GitHub Personal Access Token (optional — raises rate limit from 60 to 5,000 req/hr)"
+              aria-label="GitHub access token" />
+          </div>
+          <span id="rate-badge">API</span>
+        </div>
+
+        <!-- Status messages -->
+        <div id="gh-error" style="display:none;border-radius:5px;padding:7px 11px;font-size:11px;"></div>
+        <div id="gh-info"  style="display:none;border-radius:5px;padding:7px 11px;font-size:11px;"></div>
+      </div>
+
+    </div><!-- end tab container -->
+
+    <!-- Ignore patterns -->
+    <div class="fade-in d3" style="margin-bottom:12px;">
+      <div class="section-label" style="margin-bottom:7px;">Ignored Patterns</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div id="ignore-tags" style="display:flex;gap:5px;flex-wrap:wrap;flex:1;min-width:0;"></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+          <input type="text" id="new-ignore" placeholder="add pattern…"
+            style="width:130px;padding:5px 9px;border-radius:5px;font-size:11px;"
+            aria-label="New ignore pattern" />
+          <button id="add-ignore-btn" class="btn-ghost" style="padding:5px 10px;border-radius:5px;font-size:11px;" aria-label="Add ignore pattern">+ Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-wrap" style="display:none;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <span class="section-label">Processing</span>
+        <span id="progress-label" style="font-size:11px;color:var(--zinc-500);">—</span>
+      </div>
+      <div style="background:var(--zinc-800);border-radius:3px;height:4px;overflow:hidden;" role="progressbar" aria-label="Processing progress">
+        <div id="progress-bar-inner" style="width:0%;height:100%;border-radius:3px;"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="fade-in d4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+      <div class="stat-card" style="border-radius:7px;padding:9px 13px;">
+        <div class="section-label" style="margin-bottom:3px;">Files Included</div>
+        <div id="stat-files" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;">—</div>
+      </div>
+      <div class="stat-card" style="border-radius:7px;padding:9px 13px;">
+        <div class="section-label" style="margin-bottom:3px;">Files Skipped</div>
+        <div id="stat-skipped" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--zinc-500);">—</div>
+      </div>
+      <div class="stat-card" style="border-radius:7px;padding:9px 13px;">
+        <div class="section-label" style="margin-bottom:3px;">Est. Tokens</div>
+        <div id="stat-tokens" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--amber);">—</div>
+      </div>
+      <div class="stat-card" style="border-radius:7px;padding:9px 13px;">
+        <div class="section-label" style="margin-bottom:3px;">Total Size</div>
+        <div id="stat-size" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--zinc-300);">—</div>
+      </div>
+    </div>
+
+    <div id="size-warning" style="display:none;border-radius:6px;padding:7px 12px;font-size:11px;">
+      <i data-lucide="alert-triangle" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:5px;" aria-hidden="true"></i>
+      Output exceeds 10&nbsp;MB — this may be slow to copy or load into some LLMs.
+    </div>
+
+  </div><!-- end top panel -->
+
+  <!-- BOTTOM PANEL -->
+  <div id="bottom-panel" class="fade-in d5">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 20px;background:var(--zinc-900);border-bottom:1px solid var(--zinc-800);flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="section-label">Output</span>
+        <span id="output-status" style="font-size:11px;color:var(--zinc-600);">No source loaded</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="clear-btn" class="btn-ghost" style="padding:7px 14px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:7px;opacity:0.5;" disabled aria-label="Clear output">
+          <i data-lucide="x-circle" style="width:13px;height:13px;" aria-hidden="true"></i>Clear
+        </button>
+        <button id="copy-btn" class="btn-amber" style="padding:7px 18px;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;" disabled aria-label="Copy output to clipboard">
+          <i data-lucide="copy" style="width:14px;height:14px;" aria-hidden="true"></i>
+          <span id="copy-label">Copy to Clipboard</span>
+        </button>
+      </div>
+    </div>
+    <div class="output-wrap" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+      <textarea id="output" style="flex:1;padding:16px 20px;width:100%;" readonly
+        aria-label="Generated output"
+        placeholder="// Drop a .zip, select a folder, or paste a GitHub URL above&#10;//&#10;// Your repo will be converted to a single text context&#10;// optimized for Claude, GPT-4, Gemini, and other LLMs."></textarea>
+    </div>
+  </div>
+
+</div><!-- end app -->
+
+<script>
+(function () {
+'use strict';
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const DEFAULT_IGNORES = [
+  '.git','node_modules','dist','build','.DS_Store',
+  'package-lock.json','yarn.lock','__pycache__',
+  '.next','.nuxt','coverage','.env','thumbs.db',
+  'pnpm-lock.yaml','bun.lockb','.turbo','.vercel'
+];
+let ignorePatterns = [...DEFAULT_IGNORES];
+let currentOutput  = '';
+let abortFlag      = false;
+
+// ─── DOM ──────────────────────────────────────────────────────────────────────
+const dropZone      = document.getElementById('drop-zone');
+const zipInput      = document.getElementById('zip-input');
+const folderInput   = document.getElementById('folder-input');
+const clearBtn      = document.getElementById('clear-btn');
+const copyBtn       = document.getElementById('copy-btn');
+const copyLabel     = document.getElementById('copy-label');
+const outputEl      = document.getElementById('output');
+const outputStatus  = document.getElementById('output-status');
+const progressWrap  = document.getElementById('progress-wrap');
+const progressBar   = document.getElementById('progress-bar-inner');
+const progressLabel = document.getElementById('progress-label');
+const sizeWarning   = document.getElementById('size-warning');
+const newIgnoreIn   = document.getElementById('new-ignore');
+const addIgnoreBtn  = document.getElementById('add-ignore-btn');
+const ghUrlInput    = document.getElementById('gh-url-input');
+const ghTokenInput  = document.getElementById('gh-token-input');
+const ghFetchBtn    = document.getElementById('gh-fetch-btn');
+const ghError       = document.getElementById('gh-error');
+const ghInfo        = document.getElementById('gh-info');
+const rateBadge     = document.getElementById('rate-badge');
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+lucide.createIcons();
+renderIgnoreTags();
+updateRateBadge('');
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+window.switchTab = function (name) {
+  ['zip','folder','github'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('panel-' + t).classList.toggle('active', t === name);
+  });
+  lucide.createIcons();
+};
+
+// ─── Ignore tags ──────────────────────────────────────────────────────────────
+function renderIgnoreTags() {
+  const c = document.getElementById('ignore-tags');
+  c.innerHTML = '';
+  ignorePatterns.forEach((pat, i) => {
+    const tag = document.createElement('span');
+    tag.className = 'ignore-tag';
+    tag.style.cssText = 'padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:5px;';
+    tag.innerHTML = esc(pat) +
+      `<button onclick="removeIgnore(${i})" style="background:none;border:none;cursor:pointer;color:inherit;padding:0;line-height:1;font-size:14px;" aria-label="Remove ${esc(pat)}">×</button>`;
+    c.appendChild(tag);
+  });
+}
+window.removeIgnore = i => { ignorePatterns.splice(i, 1); renderIgnoreTags(); };
+addIgnoreBtn.addEventListener('click', addIgnore);
+newIgnoreIn.addEventListener('keydown', e => { if (e.key === 'Enter') addIgnore(); });
+function addIgnore() {
+  const v = newIgnoreIn.value.trim();
+  if (v && !ignorePatterns.includes(v)) { ignorePatterns.push(v); renderIgnoreTags(); newIgnoreIn.value = ''; }
+}
+
+// ─── Drop zone ────────────────────────────────────────────────────────────────
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+['dragleave','dragend'].forEach(ev => dropZone.addEventListener(ev, () => dropZone.classList.remove('drag-over')));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.endsWith('.zip')) processZip(f);
+  else setStatus('⚠ Please drop a valid .zip file.', 'var(--red)');
+});
+zipInput.addEventListener('change', e => { if (e.target.files[0]) processZip(e.target.files[0]); });
+folderInput.addEventListener('change', e => { if (e.target.files.length) processFolder(e.target.files); });
+
+// ─── Clear ────────────────────────────────────────────────────────────────────
+clearBtn.addEventListener('click', () => {
+  abortFlag = true;
+  currentOutput = '';
+  outputEl.value = '';
+  copyBtn.disabled = true;
+  disableClear();
+  setStatus('No source loaded', '');
+  sizeWarning.style.display = 'none';
+  updateStats(null);
+  zipInput.value = '';
+  folderInput.value = '';
+  setGhFetching(false);
+});
+
+// ─── Copy ─────────────────────────────────────────────────────────────────────
+copyBtn.addEventListener('click', async () => {
+  if (!currentOutput) return;
+  try { await navigator.clipboard.writeText(currentOutput); }
+  catch {
+    const t = document.createElement('textarea');
+    t.value = currentOutput; document.body.appendChild(t);
+    t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+  copyBtn.classList.add('copied');
+  copyLabel.textContent = 'Copied!';
+  setTimeout(() => { copyBtn.classList.remove('copied'); copyLabel.textContent = 'Copy to Clipboard'; }, 2000);
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function isBinary(u8) { const l = Math.min(u8.length, 1000); for (let i=0;i<l;i++) if (u8[i]===0) return true; return false; }
+function shouldIgnore(p) {
+  for (const part of p.split('/'))
+    for (const pat of ignorePatterns)
+      if (part === pat || part.startsWith(pat)) return true;
+  return false;
+}
+function getExt(p) { const m = p.match(/\.([^./\\]+)$/); return m ? m[1].toLowerCase() : ''; }
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+function fmtTok(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'k';
+  return n.toString();
+}
+function updateStats(d) {
+  document.getElementById('stat-files').textContent   = d ? d.files   : '—';
+  document.getElementById('stat-skipped').textContent = d ? d.skipped : '—';
+  document.getElementById('stat-tokens').textContent  = d ? fmtTok(d.tokens)  : '—';
+  document.getElementById('stat-size').textContent    = d ? fmtBytes(d.size)  : '—';
+}
+function showProgress(v) { progressWrap.style.display = v ? 'block' : 'none'; }
+function setProgress(done, total, msg) {
+  const pct = total ? Math.round((done/total)*100) : 0;
+  progressBar.style.width = pct + '%';
+  progressLabel.textContent = msg || `Processing ${done}/${total} files… (${pct}%)`;
+}
+function setStatus(msg, color) { outputStatus.textContent = msg; outputStatus.style.color = color || ''; }
+function enableClear()  { clearBtn.disabled = false; clearBtn.style.opacity = '1'; }
+function disableClear() { clearBtn.disabled = true;  clearBtn.style.opacity = '0.5'; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ─── ASCII Tree ───────────────────────────────────────────────────────────────
+function buildTree(paths) {
+  const root = {};
+  for (const p of paths) { let n = root; for (const part of p.split('/')) { if (!n[part]) n[part]={}; n=n[part]; } }
+  const lines = ['./'];
+  function walk(node, prefix) {
+    const keys = Object.keys(node).sort((a,b)=>{
+      const ad=Object.keys(node[a]).length>0, bd=Object.keys(node[b]).length>0;
+      return ad!==bd ? (bd?1:-1) : a.localeCompare(b);
+    });
+    keys.forEach((key,i) => {
+      const last = i === keys.length-1, isDir = Object.keys(node[key]).length>0;
+      lines.push(prefix + (last?'└── ':'├── ') + key + (isDir?'/':''));
+      if (isDir) walk(node[key], prefix + (last?'    ':'│   '));
+    });
+  }
+  walk(root,'');
+  return lines.join('\n');
+}
+
+// ─── Core processor ───────────────────────────────────────────────────────────
+async function processFiles(entries, label) {
+  abortFlag = false;
+  showProgress(true);
+  setProgress(0, entries.length);
+  outputEl.value = '';
+  updateStats(null);
+
+  const included = [];
+  let skipped = 0;
+  const CHUNK = 8;
+
+  for (let i = 0; i < entries.length; i += CHUNK) {
+    if (abortFlag) { showProgress(false); return; }
+    for (const entry of entries.slice(i, i + CHUNK)) {
+      if (shouldIgnore(entry.path)) { skipped++; continue; }
+      let data;
+      try { data = await entry.getData(); } catch { skipped++; continue; }
+      if (!data || isBinary(data)) { skipped++; continue; }
+      try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(data);
+        included.push({ path: entry.path, text });
+      } catch { skipped++; }
+    }
+    setProgress(Math.min(i + CHUNK, entries.length), entries.length);
+    await sleep(0);
+  }
+
+  const tree = buildTree(included.map(f => f.path));
+  let out = `# ${label || 'Repository'}\n# Generated by repotree2txt\n\n## File Tree\n\`\`\`\n${tree}\n\`\`\`\n\n${'─'.repeat(64)}\n\n`;
+  for (const f of included) out += `## File: ${f.path}\n\`\`\`${getExt(f.path)}\n${f.text}\n\`\`\`\n\n`;
+
+  currentOutput = out;
+  outputEl.value = out;
+
+  const totalSize = new TextEncoder().encode(out).length;
+  updateStats({ files: included.length, skipped, tokens: Math.round(out.length/4), size: totalSize });
+  setStatus(`✓ ${included.length} files · ${fmtBytes(totalSize)}`, 'var(--green)');
+  sizeWarning.style.display = totalSize > 10*1024*1024 ? 'block' : 'none';
+  copyBtn.disabled = false;
+  enableClear();
+  showProgress(false);
+  lucide.createIcons();
+}
+
+// ─── ZIP ──────────────────────────────────────────────────────────────────────
+async function processZip(file) {
+  setStatus('Reading ZIP…', '');
+  let zip;
+  try { zip = await JSZip.loadAsync(await file.arrayBuffer()); }
+  catch(e) { setStatus('⚠ Failed to read ZIP: ' + e.message, 'var(--red)'); return; }
+  const entries = [];
+  zip.forEach((path, entry) => { if (!entry.dir) entries.push({ path, getData: () => entry.async('uint8array') }); });
+  if (entries.length) {
+    const pfx = entries[0].path.split('/')[0] + '/';
+    if (entries.every(f => f.path.startsWith(pfx))) entries.forEach(f => f.path = f.path.slice(pfx.length));
+  }
+  await processFiles(entries, file.name.replace(/\.zip$/i,''));
+}
+
+// ─── FOLDER ───────────────────────────────────────────────────────────────────
+async function processFolder(fileList) {
+  setStatus('Reading folder…', '');
+  const files = Array.from(fileList);
+  const pfx = (files[0]?.webkitRelativePath?.split('/')[0] || '') + '/';
+  const entries = files.map(f => ({
+    path: pfx.length > 1 ? f.webkitRelativePath.slice(pfx.length) : (f.webkitRelativePath || f.name),
+    getData: () => f.arrayBuffer().then(ab => new Uint8Array(ab))
+  })).filter(f => f.path.length > 0);
+  await processFiles(entries, pfx.replace('/','') || 'Folder');
+}
+
+// ─── GITHUB ───────────────────────────────────────────────────────────────────
+function parseGhUrl(raw) {
+  raw = raw.trim();
+  let owner, repo, branch = null;
+  if (raw.startsWith('http')) {
+    try {
+      const u = new URL(raw);
+      const parts = u.pathname.replace(/^\//,'').split('/');
+      if (parts.length < 2) return null;
+      owner = parts[0]; repo = parts[1].replace(/\.git$/,'');
+      if (parts[2] === 'tree' && parts[3]) branch = parts.slice(3).join('/');
+    } catch { return null; }
+  } else {
+    const [ownerRepo, br] = raw.split('@');
+    const [o, r] = ownerRepo.split('/');
+    if (!o || !r) return null;
+    owner = o; repo = r.replace(/\.git$/,''); branch = br || null;
+  }
+  return { owner, repo, branch };
+}
+
+function ghHeaders(token) {
+  const h = { 'Accept': 'application/vnd.github.v3+json' };
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  return h;
+}
+
+async function updateRateBadge(token) {
+  try {
+    const r = await fetch('https://api.github.com/rate_limit', { headers: ghHeaders(token) });
+    const d = await r.json();
+    const rem = d.rate?.remaining ?? '?', lim = d.rate?.limit ?? '?';
+    rateBadge.textContent = `${rem}/${lim}`;
+    if (rem === '?') { rateBadge.className = 'rate-badge'; return; }
+    rateBadge.className = 'rate-badge ' + (rem > 20 ? 'ok' : rem > 5 ? 'warn' : 'low');
+  } catch { rateBadge.textContent = 'API'; rateBadge.className = 'rate-badge'; }
+}
+
+function setGhFetching(on) {
+  ghFetchBtn.disabled = on;
+  document.getElementById('gh-btn-icon').innerHTML = on
+    ? '<span class="spin" aria-hidden="true">⟳</span>'
+    : '<i data-lucide="download-cloud" style="width:14px;height:14px;"></i>';
+  document.getElementById('gh-btn-label').textContent = on ? 'Fetching…' : 'Fetch Repo';
+  if (!on) lucide.createIcons();
+}
+
+function ghMsg(type, msg) {
+  ghError.style.display = type === 'error' ? 'block' : 'none';
+  ghInfo.style.display  = type === 'info'  ? 'block' : 'none';
+  if (type === 'error') ghError.textContent = '⚠ ' + msg;
+  if (type === 'info')  ghInfo.innerHTML = msg;
+  if (type === null)    { ghError.style.display = 'none'; ghInfo.style.display = 'none'; }
+  if (type === 'info')  lucide.createIcons();
+}
+
+ghFetchBtn.addEventListener('click', fetchGitHub);
+ghUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchGitHub(); });
+ghTokenInput.addEventListener('change', () => updateRateBadge(ghTokenInput.value.trim()));
+
+async function fetchGitHub() {
+  const raw   = ghUrlInput.value.trim();
+  const token = ghTokenInput.value.trim();
+  if (!raw) { ghMsg('error', 'Enter a GitHub repository URL or owner/repo.'); return; }
+
+  const parsed = parseGhUrl(raw);
+  if (!parsed) { ghMsg('error', 'Could not parse repository. Use: https://github.com/owner/repo or owner/repo[@branch].'); return; }
+
+  const { owner, repo } = parsed;
+  let { branch } = parsed;
+
+  ghMsg(null);
+  setGhFetching(true);
+  abortFlag = false;
+  setStatus('Connecting to GitHub API…', '');
+  outputEl.value = '';
+  updateStats(null);
+  showProgress(true);
+  setProgress(0, 1, 'Fetching repository info…');
+
+  try {
+    // 1. Resolve default branch
+    if (!branch) {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: ghHeaders(token) });
+      if (res.status === 404) { ghMsg('error', `Repository "${owner}/${repo}" not found. Check spelling, or it may be private.`); return; }
+      if (res.status === 403) { ghMsg('error', 'GitHub API rate limit hit. Add a Personal Access Token to continue.'); return; }
+      if (!res.ok) { ghMsg('error', `GitHub API error ${res.status}: ${res.statusText}`); return; }
+      branch = (await res.json()).default_branch || 'main';
+    }
+
+    ghMsg('info',
+      `<i data-lucide="git-branch" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:5px;" aria-hidden="true"></i>` +
+      `<strong style="color:#fff;">${esc(owner)}/${esc(repo)}</strong> &nbsp;·&nbsp; branch: <code style="color:var(--amber)">${esc(branch)}</code>`
+    );
+
+    // 2. Recursive tree
+    setProgress(0, 1, 'Loading file tree…');
+    const treeRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+      { headers: ghHeaders(token) }
+    );
+    if (treeRes.status === 403) { ghMsg('error', 'Rate limit hit fetching file tree. Add a GitHub token to proceed.'); return; }
+    if (!treeRes.ok) { ghMsg('error', `Failed to load file tree: ${treeRes.status}`); return; }
+
+    const treeData = await treeRes.json();
+    const blobs = (treeData.tree || []).filter(n => n.type === 'blob');
+
+    if (treeData.truncated) {
+      ghMsg('info',
+        `<i data-lucide="alert-triangle" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:5px;" aria-hidden="true"></i>` +
+        `Tree truncated by GitHub (repo has &gt;100k files). Showing first <strong>${blobs.length.toLocaleString()}</strong> blobs.`
+      );
+    }
+
+    setStatus(`Downloading ${blobs.length} files…`, '');
+
+    // 3. Build lazy entries (raw.githubusercontent.com)
+    const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+    const entries = blobs.map(node => ({
+      path: node.path,
+      getData: async () => {
+        const r = await fetch(rawBase + node.path, token ? { headers: { 'Authorization': 'Bearer ' + token } } : {});
+        if (!r.ok) return null;
+        return new Uint8Array(await r.arrayBuffer());
+      }
+    }));
+
+    await updateRateBadge(token);
+    await processFiles(entries, `${owner}/${repo}`);
+
+  } catch (e) {
+    const msg = e instanceof TypeError && e.message.includes('Failed to fetch')
+      ? 'Network error. Check your connection — GitHub may also block direct browser requests for private repos.'
+      : 'Unexpected error: ' + e.message;
+    ghMsg('error', msg);
+    showProgress(false);
+    setStatus('⚠ GitHub fetch failed.', 'var(--red)');
+  } finally {
+    setGhFetching(false);
+  }
+}
+
+})();
+</script>
+</body>
+</html>
